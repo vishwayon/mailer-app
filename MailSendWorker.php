@@ -24,7 +24,7 @@ class MailSenderWorker {
                     break;
                 }
                 // Create Transport
-                $transport = (new Swift_SmtpTransport($cwfConfig['mailer']['host'], $cwfConfig['mailer']['port'], 'tls'))
+                $transport = (new Swift_SmtpTransport($cwfConfig['mailer']['host'], $cwfConfig['mailer']['port'], 'ssl'))
                         ->setUsername($cwfConfig['mailer']['username'])
                         ->setPassword($cwfConfig['mailer']['password']);
                 // Create Mailer
