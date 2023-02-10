@@ -1,5 +1,11 @@
 {
+    "config": {
+        "allow-plugins": {
+            "php-http/discovery": false
+        }
+    },
     "require": {
-        "swiftmailer/swiftmailer": "^6.0"
+        "mailjet/mailjet-apiv3-php": "^1.5",
+        "sentry/sdk": "^3.3"
     }
 }
