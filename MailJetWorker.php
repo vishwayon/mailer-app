@@ -21,7 +21,7 @@ class MailJetWorker {
 
         while (true) {
 
-            $sql = "Select * from sys.notification_mail where is_send=0 and notification_mail_id = 884 -- order by notification_mail_id asc limit 5";
+            $sql = "Select * from sys.notification_mail where is_send = 0 order by notification_mail_id asc limit 5"; //
             $query = $cn->query($sql);
             $rows = $query->fetchAll();
             $query->closeCursor();
@@ -32,23 +32,37 @@ class MailJetWorker {
 
             foreach ($rows as $row) {
                 $mail_id = $row['notification_mail_id'];
-                if ($this->validate($row)) {
+                $addrs = $this->validate($row);
+                if (count($addrs['errors']) == 0) {
                     $msg = [];
                     $msg['From'] = [
                         'Email' => trim($row['mail_from']),
                         'Name' => "CoreERP Notifications"
                     ];
-                    $msg['To'] = [
-                        ['Email' => trim($row['mail_to'])]
-                    ];
-                    if (trim($row['cc']) !== '') {
-                        $msg['Cc'] = [
-                            ['Email' => trim($row['cc'])]
-                        ];
+                    $msg['To'] = [];
+                    foreach ($addrs['mail_to'] as $mailTo) {
+                        $msg['To'][] = ['Email' => $mailTo];
+                    }
+                    if (count($addrs['cc']) > 0) {
+                        $msg['Cc'] = [];
+                        foreach ($addrs['cc'] as $mailcc) {
+                            $msg['Cc'][] = ['Email' => $mailcc];
+                        }
                     }
                     $msg['Subject'] = $row['subject'];
                     $msg['HTMLPart'] = $row['body'];
-                    // TODO: Attachments
+                    //Attachments
+                    if ($row['attachment_path'] !== '') {
+                        $fileInfo = new \SplFileInfo($row['attachment_path']);
+                        $fileData = base64_encode(file_get_contents($row['attachment_path']));
+                        $msg['Attachments'] = [
+                            [
+                                'ContentType' => 'application/' . $fileInfo->getExtension(),
+                                'FileName' => $fileInfo->getBasename(),
+                                'Base64Content' => $fileData
+                            ]
+                        ];
+                    }
                     // Send Mail
                     $msgBody = [
                         'Messages' => [
@@ -76,49 +90,52 @@ class MailJetWorker {
                     $stmt = $cn->prepare("Update sys.notification_mail SET is_send = 99, send_result = :presp_data WHERE notification_mail_id = :pmail_id");
                     $stmt->execute([
                         'pmail_id' => $mail_id,
-                        'presp_data' => 'Validation Failed [Email id]'
+                        'presp_data' => 'Validation Failed' . PHP_EOL . implode(PHP_EOL, $addrs['errors'])
                     ]);
-                    throw new Exception('Mail ID: ' . $mail_id . " Result: Validation Failed [Email id]");
+                    throw new Exception('Mail ID: ' . $mail_id . " Result: Validation Failed" . PHP_EOL . implode(PHP_EOL, $addrs['errors']));
                 }
             }
         }
     }
 
-    private function validate($row) {
+    private function validate($row): array {
+        $addrs = [
+            'mail_to' => [],
+            'reply_to' => '',
+            'cc' => [],
+            'bcc' => [],
+            'errors' => []
+        ];
+        // Resolve Mail To
         $mailTo = explode(',', trim($row['mail_to']));
-        $mailFrom = trim($row['mail_from']);
-        $reply_to = $row['reply_to'];
-        $cc = ($row['cc'] == NULL || $row['cc'] == '') ? [] : explode(',', trim($row['cc']));
-        $bcc = ($row['bcc'] == NULL || $row['bcc'] == '') ? [] : explode(',', trim($row['bcc']));
-        foreach ($mailTo as $email) {
-            if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
-                echo 'invalid email in MailTo :' . $email . "\n";
-                return FALSE;
+        foreach($mailTo as $addr) {
+            if (filter_var($addr, FILTER_VALIDATE_EMAIL)) {
+                $addrs['mail_to'][] = trim($addr);
+            } else {
+                $addrs['errors'][] = "Mail To has Invalid Email Address [$addr]";
             }
         }
-        if (!filter_var($mailFrom, FILTER_VALIDATE_EMAIL)) {
-            echo 'invalid email in MailFrom :' . $mailFrom . "\n";
-            return FALSE;
-        }
-        if ($reply_to != '') {
-            if (!filter_var($reply_to, FILTER_VALIDATE_EMAIL)) {
-                echo 'invalid email in ReplyTo :' . $reply_to . "\n";
-                return FALSE;
+        // Resolve Reply-To
+        $addrs['reply_to'] = trim($row['reply_to']);
+        //Resolve CC
+        $cc = $row['cc'] == '' ? [] : explode(',', trim($row['cc']));
+        foreach($cc as $addr) {
+            if (filter_var($addr, FILTER_VALIDATE_EMAIL)) {
+                $addrs['cc'][] = trim($addr);
+            } else {
+                $addrs['errors'][] = "Mail Cc has Invalid Email Address [$addr]";
             }
         }
-        foreach ($cc as $email) {
-            if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
-                echo 'invalid email in CC :' . $email . "\n";
-                return FALSE;
+        // Resolve BCC
+        $bcc = $row['bcc'] == '' ? [] : explode(',', trim($row['bcc']));
+        foreach($bcc as $addr) {
+            if (filter_var($addr, FILTER_VALIDATE_EMAIL)) {
+                $addrs['bcc'][] = trim($addr);
+            } else {
+                $addrs['errors'][] = "Mail Bcc has Invalid Email Address [$addr]";
             }
         }
-        foreach ($bcc as $email) {
-            if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
-                echo 'invalid email in BCC :' . $email . "\n";
-                return FALSE;
-            }
-        }
-        return TRUE;
+        return $addrs;
     }
 
 }
