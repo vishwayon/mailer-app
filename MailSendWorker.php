@@ -1,5 +1,6 @@
 <?php
 
+/** @deprecated since introduction of MailJetWorker */
 class MailSenderWorker {
 
     // method declaration
@@ -68,15 +69,16 @@ class MailSenderWorker {
                             // provide proper breaks before sending next mail. Else, server may term it as spam
                             usleep(50000);
                         } catch (\Swift_TransportException $ex) {
-                            echo 'Transport exception. Email not sent. notification_mail_id= ' . $mail_id;
+                            echo $ex->getMessage() . PHP_EOL;
+                            echo 'Transport exception. Email not sent. notification_mail_id= ' . $mail_id . PHP_EOL;
                         } catch (\Swift_SwiftException $ex) {
                             $update = 'Update sys.notification_mail SET is_send=501 WHERE notification_mail_id= ' . $mail_id;
                             $cn->exec($update);
-                            echo 'Not Sent Notification Mail ID - ' . $mail_id . ' err:' . $ex->getMessage() . "\n";
+                            echo 'Not Sent Notification Mail ID - ' . $mail_id . ' err:' . $ex->getMessage()  . PHP_EOL;
                         } catch (\Exception $ex) {
                             $update = 'Update sys.notification_mail SET is_send=99 WHERE notification_mail_id= ' . $row['notification_mail_id'];
                             $cn->exec($update);
-                            echo 'Not Sent Notification Mail ID - ' . $mail_id . ' err:' . $ex->getMessage() . "\n";
+                            echo 'Not Sent Notification Mail ID - ' . $mail_id . ' err:' . $ex->getMessage()  . PHP_EOL;
                         }
                     } else {
                         $update = 'Update sys.notification_mail SET is_send=99 WHERE notification_mail_id= ' . $row['notification_mail_id'];
