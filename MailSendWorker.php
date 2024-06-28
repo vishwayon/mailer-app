@@ -16,7 +16,7 @@ class MailSenderWorker {
             echo "Reading data..\n";
             while (true) {
 
-                $sql = "Select * from sys.notification_mail where is_send=0 order by notification_mail_id asc limit 5";
+                $sql = "Select * from sys.notification_mail where is_send=0 and mail_from != 'errors@coreerp.in' order by notification_mail_id asc limit 5";
 
                 $query = $cn->query($sql);
                 $rows = $query->fetchAll();
@@ -24,10 +24,11 @@ class MailSenderWorker {
                 if (count($rows) == 0) {
                     break;
                 }
-                // Create Transport
-                $transport = (new Swift_SmtpTransport($cwfConfig['mailer']['host'], $cwfConfig['mailer']['port'], isset($cwfConfig['mailer']['enc']) ? $cwfConfig['mailer']['enc'] : 'ssl'))
-                        ->setUsername($cwfConfig['mailer']['username'])
-                        ->setPassword($cwfConfig['mailer']['password']);
+                // Create Transport (Warning: exception mail settings will always override mailer settings)
+                $smtp = array_merge($cwfConfig['mailer'], $cwfConfig['exceptionMail']);
+                $transport = (new Swift_SmtpTransport($smtp['host'], $smtp['port'], isset($smtp['enc']) ? $smtp['enc'] : 'ssl'))
+                        ->setUsername($smtp['username'])
+                        ->setPassword($smtp['password']);
                 // Create Mailer
                 $mailer = new Swift_Mailer($transport);
 
